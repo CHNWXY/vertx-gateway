@@ -17,4 +17,4 @@ MySQL > 5.7
 采用基于事件驱动的Vertx框架，吞吐量高，处理能力强。后续将支持非Java环境（自带JRE）的模式和非必须MYSQL数据库的格式（通过SQL_LITE或者文件）
 
 ## 合作方法
-发送邮件到 mathcecwang@gmail.com 或着添加个人微信 !()[./resource/images/wechat01.png]
+发送邮件到 mathcecwang@gmail.com 或着添加个人微信 ![](./resouce/images/wechat01.png)
