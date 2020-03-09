@@ -2,8 +2,6 @@ import io.vertx.core.Vertx;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetServer;
 import org.junit.Test;
-import pojo.DivideHttpUrl;
-
 import java.util.logging.Logger;
 
 public class TestLog {

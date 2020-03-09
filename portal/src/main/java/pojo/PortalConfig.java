@@ -11,6 +11,7 @@ public class PortalConfig {
 
     String centerHost;
     int centerPort;
+    int centerSettingPort;
     int settingPort;
 
     private PortalConfig() {
@@ -19,8 +20,9 @@ public class PortalConfig {
     public static PortalConfig portalConfig() {
         return new PortalConfig()
                 .setPath("/api").setServerPort(8080)
+                .setSettingPort(8081)
                 .setCenterHost("localhost")
                 .setCenterPort(9001)
-                .setSettingPort(9002);
+                .setCenterSettingPort(9002);
     }
 }

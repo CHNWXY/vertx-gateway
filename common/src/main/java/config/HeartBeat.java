@@ -5,6 +5,7 @@ import constant.TcpPrefix;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 import utils.Bytes;
 
@@ -12,6 +13,7 @@ import java.io.Serializable;
 
 @Data
 @Accessors(chain = true)
+@NoArgsConstructor
 public class HeartBeat implements Serializable {
     static final long serialVersionUID = 20200202L;
     RollIn rollIn;
@@ -23,7 +25,7 @@ public class HeartBeat implements Serializable {
     public Buffer toBuffer() {
         JsonObject o = new JsonObject();
         o.put(ParamKey.TCP_PREFIX, TcpPrefix.HEART_BEAT);
-        o.put(ParamKey.SETTING_CONTENT, Bytes.toBytes(this));
+        o.put(ParamKey.SETTING_CONTENT, JsonObject.mapFrom(this));
         return o.toBuffer();
     }
 }

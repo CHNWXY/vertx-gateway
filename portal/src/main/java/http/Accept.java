@@ -8,12 +8,13 @@ import constant.TcpPrefix;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.client.WebClient;
 import pojo.DivideHttpUrl;
 import pojo.PortalConfig;
 import utils.Bytes;
@@ -32,11 +33,12 @@ public class Accept {
         //读取配置文件
         PortalConfig portalConfig = PortalConfig.portalConfig();
         //RollIn
-        RollIn rollIn = RollIn.portal();
+        RollIn rollIn = RollIn.portal().setHost("localhost").setPort(portalConfig.getSettingPort());
         //创建TCP监听
         NetClient httpNetClient = VERTX.createNetClient();
         httpNetClient.connect(portalConfig.getCenterPort(), portalConfig.getCenterHost(), socket -> {
             if (socket.succeeded()) {
+                LOGGER.info("TCP通道建立成功");
                 //获取Socket
                 NetSocket netSocket = socket.result();
                 //创建HTTP监听
@@ -54,6 +56,7 @@ public class Accept {
                 router.route(portalConfig.getPath()).handler(http -> {
                     DivideHttpUrl divideHttpUrl = new DivideHttpUrl(http);
                     Response response = Response.make(http, divideHttpUrl);
+                    //判断是否有错误
                     if (divideHttpUrl.getError() == null) {
                         next(netSocket, response);
                     } else {
@@ -76,37 +79,43 @@ public class Accept {
             }
         });
         //创建配置监听
-        NetClient netClient = VERTX.createNetClient();
-        netClient.connect(portalConfig.getSettingPort(), portalConfig.getCenterHost(), h -> {
+        HttpServer settingServer = VERTX.createHttpServer();
+        Router router = Router.router(VERTX);
+        settingServer.requestHandler(router).listen(portalConfig.getSettingPort(), h -> {
             if (h.succeeded()) {
-                NetSocket netSocket = h.result();
-                //发送第一个身份识别
-                netSocket.write(rollIn.toBuffer());
-                //持续发送心跳
-                VERTX.setPeriodic(5000, heart -> {
-                    netSocket.write(new HeartBeat(rollIn).toBuffer());
-                });
-                //监听配置
-                netSocket.handler(receive -> {
-                    JsonObject receiveJson = receive.toJsonObject();
-                    String tcpPrefix = receiveJson.getString(ParamKey.TCP_PREFIX);
-                    switch (tcpPrefix) {
-                        case TcpPrefix.RELOAD_A_COMPANY:
-                            LOGGER.info("准备开始重新加载公司");
-                            break;
-                        default:
-                            break;
-                    }
-                });
+                LOGGER.info("创建配置监听成功");
             } else {
-                LOGGER.severe("创建服务配置连接失败");
+                LOGGER.severe("创建配置监听失败");
             }
         });
+        router.route().handler(h -> {
+        });
 
+        //发送注册和心跳
+        WebClient webClient = WebClient.create(VERTX);
+        //注册
+        sendHttp(portalConfig, rollIn.toBuffer(), webClient);
+        //发送心跳
+        VERTX.setPeriodic(5000, heartBeat -> {
+            sendHttp(portalConfig, new HeartBeat(rollIn).toBuffer(), webClient);
+        });
     }
 
     private static void next(NetSocket netSocket, Response response) {
         LOGGER.info("Portal校验通过，开始下发");
         netSocket.write(Buffer.buffer().appendBytes(Bytes.toBytes(response)));
+    }
+
+    private static void sendHttp(PortalConfig portalConfig, Buffer buffer, WebClient webClient) {
+        String url = "http://" + portalConfig.getCenterHost() + ":" + portalConfig.getCenterSettingPort() + "/";
+        LOGGER.info(url + "---" + buffer.toJsonObject());
+        webClient.postAbs(url)
+                .sendBuffer(buffer, h -> {
+                    if (h.succeeded()) {
+                        LOGGER.info("发送成功！！！");
+                    } else {
+                        LOGGER.severe("发送失败！！！");
+                    }
+                });
     }
 }

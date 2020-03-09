@@ -2,7 +2,7 @@ package utils;
 
 import java.io.*;
 
-public class Bytes<T> {
+public class Bytes {
     public static byte[] toBytes(Object o) {
         ByteArrayOutputStream baos = null;
         ObjectOutputStream oos = null;
