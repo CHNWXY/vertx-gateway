@@ -10,10 +10,12 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetClient;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.WebClient;
 import pojo.DivideHttpUrl;
 import pojo.PortalConfig;
@@ -34,61 +36,61 @@ public class Accept {
         PortalConfig portalConfig = PortalConfig.portalConfig();
         //RollIn
         RollIn rollIn = RollIn.portal().setHost("localhost").setPort(portalConfig.getSettingPort());
-        //创建TCP监听
-        NetClient httpNetClient = VERTX.createNetClient();
-        httpNetClient.connect(portalConfig.getCenterPort(), portalConfig.getCenterHost(), socket -> {
-            if (socket.succeeded()) {
-                LOGGER.info("TCP通道建立成功");
-                //获取Socket
-                NetSocket netSocket = socket.result();
-                //创建HTTP监听
-                HttpServer server = VERTX.createHttpServer();
-                Router router = Router.router(VERTX);
-                //监听HTTP端口
-                server.requestHandler(router).listen(portalConfig.getServerPort(), h -> {
-                    if (h.succeeded()) {
-                        LOGGER.info("HTTP端口监听成功");
-                    } else {
-                        LOGGER.severe("HTTP端口监听失败");
-                    }
-                });
-                //对应监听对应的URL
-                router.route(portalConfig.getPath()).handler(http -> {
-                    DivideHttpUrl divideHttpUrl = new DivideHttpUrl(http);
-                    Response response = Response.make(http, divideHttpUrl);
-                    //判断是否有错误
-                    if (divideHttpUrl.getError() == null) {
-                        next(netSocket, response);
-                    } else {
-                        response.error(divideHttpUrl.getError());
-                    }
+
+
+        //创建HTTP监听
+        HttpServer server = VERTX.createHttpServer();
+        Router mainHttpRouter = Router.router(VERTX);
+        //监听HTTP端口
+        server.requestHandler(mainHttpRouter).listen(portalConfig.getServerPort(), h -> {
+            if (h.succeeded()) {
+                LOGGER.info("HTTP端口监听成功");
+            } else {
+                LOGGER.severe("HTTP端口监听失败");
+            }
+        });
+        WebClient mainWebClient = WebClient.create(VERTX);
+        //对应监听对应的URL
+        mainHttpRouter.route(portalConfig.getPath()).handler(http -> {
+            DivideHttpUrl divideHttpUrl = new DivideHttpUrl(http);
+            Response response = Response.make(http, divideHttpUrl);
+            //判断是否有错误
+            if (divideHttpUrl.getError() == null) {
+                next(mainWebClient, response).onSuccess(resp -> {
                     //处理响应
-                    netSocket.handler(resp -> {
-                        //这部分是后面处理成功之后的响应
-                        Response respObj = (Response) Bytes.fromBytes(resp.getBytes());
-                        if (respObj == null) {
+                    //这部分是后面处理成功之后的响应
+                    LOGGER.info("收到响应");
+                    try {
+                        if (resp == null) {
                             response.error(Error.SYS_ERR);
                         } else {
-                            respObj.success();
+                            resp.setRoutingContext(http).success();
                         }
-                    });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        response.error(Error.SYS_ERR);
+                    }
+                }).onFailure(f -> {
+                    f.printStackTrace();
+                    response.error(Error.SYS_ERR);
                 });
-
             } else {
-                LOGGER.severe("和Center建立TCP连接失败");
+                response.error(divideHttpUrl.getError());
             }
+
+
         });
         //创建配置监听
         HttpServer settingServer = VERTX.createHttpServer();
-        Router router = Router.router(VERTX);
-        settingServer.requestHandler(router).listen(portalConfig.getSettingPort(), h -> {
+        Router settingRouter = Router.router(VERTX);
+        settingServer.requestHandler(settingRouter).listen(portalConfig.getSettingPort(), h -> {
             if (h.succeeded()) {
                 LOGGER.info("创建配置监听成功");
             } else {
                 LOGGER.severe("创建配置监听失败");
             }
         });
-        router.route().handler(h -> {
+        settingRouter.route().handler(h -> {
         });
 
         //发送注册和心跳
@@ -101,9 +103,16 @@ public class Accept {
         });
     }
 
-    private static void next(NetSocket netSocket, Response response) {
-        LOGGER.info("Portal校验通过，开始下发");
-        netSocket.write(Buffer.buffer().appendBytes(Bytes.toBytes(response)));
+    private static Future<Response> next(WebClient webClient, Response response) {
+        return Future.future(p -> {
+            webClient.postAbs("/").sendJson(JsonObject.mapFrom(response), h -> {
+                if (h.succeeded()) {
+                    p.complete(h.result().bodyAsJsonObject().mapTo(Response.class));
+                } else {
+                    p.fail(h.cause());
+                }
+            });
+        });
     }
 
     private static void sendHttp(PortalConfig portalConfig, Buffer buffer, WebClient webClient) {

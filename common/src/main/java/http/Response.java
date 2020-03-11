@@ -1,11 +1,15 @@
 package http;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import constant.Error;
 import constant.ParamKey;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+import lombok.experimental.Accessors;
 import pojo.DivideHttpUrl;
 import security.MainSecurity;
 import security.StringUtils;
@@ -15,6 +19,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Getter
+@ToString
+@Accessors(chain = true)
 public class Response implements Serializable {
     static final long serialVersionUID = 19941215L;
     int result;
@@ -22,6 +28,8 @@ public class Response implements Serializable {
     String dataStr = "";
     Map<String, Object> data = new HashMap<>();
     transient JsonObject resp = new JsonObject();
+    @Setter
+    @JsonIgnore
     transient RoutingContext routingContext;
     DivideHttpUrl divideHttpUrl;
 
@@ -37,7 +45,9 @@ public class Response implements Serializable {
     }
 
     public void success() {
-        this.dataStr = MainSecurity.aesEncrypt(this.data.toString(), divideHttpUrl.getCompany().getAesKey());
+        if (!this.data.isEmpty()) {
+            this.dataStr = MainSecurity.aesEncrypt(this.data.toString(), divideHttpUrl.getCompany().getAesKey());
+        }
         end();
     }
 

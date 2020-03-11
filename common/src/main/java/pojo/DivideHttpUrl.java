@@ -1,10 +1,12 @@
 package pojo;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import constant.ParamKey;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import lombok.ToString;
 import security.StringUtils;
 import constant.Error;
@@ -19,9 +21,11 @@ import java.util.logging.Logger;
  */
 @ToString
 @NoArgsConstructor
+@Setter
 public class DivideHttpUrl implements Serializable {
     static final long serialVersionUID = 19950830L;
     private static final transient Logger LOGGER = Logger.getLogger(DivideHttpUrl.class.getName());
+    @JsonIgnore
     transient RoutingContext routingContext;
     @Getter
     transient Company company;

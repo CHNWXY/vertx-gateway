@@ -6,6 +6,7 @@ import config.RollIn;
 import constant.ParamKey;
 import constant.TcpPrefix;
 import data.PortalAndRouter;
+import http.Response;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpServer;
@@ -27,18 +28,26 @@ public class Center {
     public static void main(String[] args) {
         CenterConfig centerConfig = CenterConfig.centerConfig();
         //监听端口，监听来自Portal和Router的沟通请求
-        NetServer http = VERTX.createNetServer();
-        http.connectHandler(coon -> {
-            coon.handler(accept -> {
-                LOGGER.info(accept.toString());
-            });
-        }).listen(centerConfig.getHttpServerPort(), h -> {
+        HttpServer http = VERTX.createHttpServer();
+        Router httpRouter = Router.router(VERTX);
+        http.requestHandler(httpRouter).listen(centerConfig.getHttpServerPort(), h -> {
             if (h.succeeded()) {
                 LOGGER.info("监听服务端口成功");
             } else {
                 LOGGER.severe("监听服务端口失败");
             }
         });
+        httpRouter.route().handler(
+                h -> {
+                    try {
+                        Response response = h.getBodyAsJson().mapTo(Response.class);
+                        LOGGER.info(response.toString());
+                        h.response().end(JsonObject.mapFrom(response).toBuffer());
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+        );
         //创建一个HTTP接口，提供给portal和router进行注册和心跳检测
         HttpServer register = VERTX.createHttpServer();
         Router router = Router.router(VERTX);
@@ -53,7 +62,6 @@ public class Center {
     }
 
     private static void settings(RoutingContext routingContext) {
-
         LOGGER.info("收到配置注册信息");
         routingContext.request().bodyHandler(buffer -> {
             try {
